@@ -1,0 +1,3 @@
+sqlalchemy
+mixinsdk==0.1.5
+mininode>=0.1.5
