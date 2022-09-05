@@ -134,4 +134,4 @@ dmypy.json
 
 *.db
 * copy.py
-config_private.py
+*_private*

@@ -139,37 +139,3 @@ class RumBot:
                 if "data" in resp:
                     self.db.add_trx_sent(trx.trx_id, user_id)
                     self.db.update_sent_msgs(resp["data"]["message_id"], trx.trx_id, user_id)
-
-    def send_to_rum(self):
-        quote_msgs = self.db.get_messages_to_send_with_quote()
-        for msg in quote_msgs:
-            quoted = self.db.get_sent_msg(msg.quote_message_id)
-            if quoted:
-                pvtkey = self.db.get_privatekey(msg.user_id)
-                if msg.text in ["赞", "点赞", "1", "+1"]:
-                    resp = self.rum.api.like(pvtkey, quoted.trx_id)
-                elif msg.text in ["踩", "点踩", "-1", "0"]:
-                    resp = self.rum.api.like(pvtkey, quoted.trx_id, "Dislike")
-                else:
-                    resp = self.rum.api.reply_trx(
-                        pvtkey,
-                        quoted.trx_id,
-                        content=msg.text,
-                    )
-                if "trx_id" in resp:
-                    logger.debug(datetime.datetime.now(), "send_to_rum, message_id:", msg.message_id)
-                    self.db.set_message_sent(msg.message_id)
-                    self.db.update_sent_msgs(msg.message_id, resp["trx_id"], msg.user_id)
-
-        mixin_msgs = self.db.get_messages_to_send()
-        for msg in mixin_msgs:
-            if len(msg.text) < 5:  # too short to send
-                continue
-
-            pvtkey = self.db.get_privatekey(msg.user_id)
-            resp = self.rum.api.send_content(pvtkey, content=msg.text)
-
-            if "trx_id" in resp:
-                logger.debug(datetime.datetime.now(), "send_to_rum, message_id:", msg.message_id)
-                self.db.set_message_sent(msg.message_id)
-                self.db.update_sent_msgs(msg.message_id, resp["trx_id"], msg.user_id)

@@ -9,7 +9,6 @@ from group_bot.config import COMMON_ACCOUNT_PWD, MIXIN_BOT_KEYSTORE
 from group_bot.models import Base
 from group_bot.models.base import BaseDB
 from group_bot.models.keystore import KeyStore
-from group_bot.models.message import Message
 from group_bot.models.profile import Profile
 from group_bot.models.sent_msgs import SentMsgs
 from group_bot.models.trx import Trx
@@ -33,85 +32,6 @@ def _check_str_param(param):
 
 
 class BotDB(BaseDB):
-    def add_message(self, msgview, session):
-        session = session or self.session
-
-        existed = self.get_message(msgview.message_id)
-        if not existed:
-            _c = {
-                "message_id": msgview.message_id,
-                "quote_message_id": msgview.quote_message_id,
-                "conversation_id": msgview.conversation_id,
-                "user_id": msgview.user_id,
-                "text": _check_str_param(msgview.data_decoded),
-                "category": msgview.category,
-                "timestamp": msgview.created_at,
-            }
-            self.add(Message(_c), session)
-            logger.info(f"add message: {msgview.message_id}")
-        else:
-            logger.info(f"message already exists: {msgview.message_id}")
-        return True
-
-    def get_message(self, message_id):
-        return self.session.query(Message).filter(Message.message_id == message_id).first()
-
-    def get_messages_by_user(self, user_id):
-        return self.session.query(Message).filter(Message.user_id == user_id).all()
-
-    def get_messages_to_send_with_quote(self):
-        return (
-            self.session.query(Message)
-            .filter(Message.text != "")
-            .filter(Message.sent_to_rum is None)
-            .filter(Message.quote_message_id != "")
-            .filter(Message.user_id != MIXIN_BOT_KEYSTORE["client_id"])
-            .all()
-        )
-
-    def get_messages_to_send(self):
-        return (
-            self.session.query(Message)
-            .filter(Message.text != "")
-            .filter(Message.sent_to_rum is None)
-            .filter(Message.quote_message_id == "")
-            .filter(Message.user_id != MIXIN_BOT_KEYSTORE["client_id"])
-            .all()
-        )
-
-    def get_messages_to_reply(self, hours=-9):
-        # 和 server 有 -8 时差。-9 也就是只处理 1 小时内的 message
-
-        target_datetime = datetime.datetime.now() + datetime.timedelta(hours=hours)
-
-        return (
-            self.session.query(Message)
-            .filter(Message.text != "")
-            .filter(Message.replied is None)
-            .filter(Message.quote_message_id == "")
-            .filter(Message.user_id != MIXIN_BOT_KEYSTORE["client_id"])
-            .filter(Message.timestamp >= target_datetime)
-            .all()
-        )
-
-    def is_message_replied(self, message_id: str):
-        return self.session.query(Message).filter(Message.message_id == message_id).first().replied
-
-    def is_message_sent(self, message_id):
-        return self.session.query(Message).filter(Message.message_id == message_id).first().sent_to_rum
-
-    def set_message_replied(self, message_id):
-        if self.is_message_replied(message_id):
-            return
-        self.session.query(Message).filter(Message.message_id == message_id).update({"replied": True})
-        self.commit()
-
-    def set_message_sent(self, message_id):
-        if self.is_message_sent(message_id):
-            return
-        self.session.query(Message).filter(Message.message_id == message_id).update({"sent_to_rum": True})
-        self.commit()
-
     def get_all_users(self):
         _mixin_ids = self.session.query(KeyStore.user_id).all()
         return [_mixin_id[0] for _mixin_id in _mixin_ids]

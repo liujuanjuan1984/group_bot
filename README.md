@@ -4,11 +4,21 @@
 
 其功能是：
 
-1、用户在 mixin messenger 上通过 bot 的聊天框发送文本或图片，bot 将自动为用户映射并托管密钥，并发布内容到指定的 Rum 种子网络 上
+1、用户在 mixin messenger 上通过 bot 的聊天框发送文本或图片，bot 将自动为用户映射并托管密钥，并发布内容到指定的 rum 种子网络上。
 
-2、bot 从指定的 Rum 种子网络获取待转发的动态，推送给用户
+特别地，用户直接发送文本“修改昵称：新的昵称”将修改所映射的 rum 密钥的昵称。
 
-3、bot 将记录用户的 mixin id ，并托管用户所映射的密钥，请注意，这并不是完全去中心化或匿名的
+2、bot 从指定的 Rum 种子网络获取待转发的动态，推送给用户。
+
+用户在 mixin 上回复某条动态，也会自动在 rum 种子网络上产生相应的回复；
+
+回复文本无长度限制；
+
+如果回复文本在 `["赞", "点赞", "1", "+1"]` 之中，将在 rum 种子网络上生成为点赞；
+
+回复文本在 `["踩", "点踩", "-1", "0"]` 之中，将生成为点踩。
+
+3、bot 将记录用户的 mixin id ，并托管用户所映射的密钥，请注意，此处理决定了本 bot 不是完全去中心化或匿名的。
 
 ## 如何部署？
 
@@ -27,32 +37,29 @@ cd mixin_bot_for_rum_group
 
 ```pip install -r requirements.txt```
 
-4、更新配置文件
+4、更新配置文件，初始化 db
 
-- rss/config.py
-- rss/config_private.py 
+- group_bot/config.py
+- group_bot/config_private.py
 
-5、启动如下服务：
 
-- blaze 服务：监听 user 发给 mixin bot 的消息，并写入消息 db
+```bash
+python do_db_init.py
+```
+
+5、启动并持续运行如下服务：
+
+- blaze 服务：监听 mixin user 发给 mixin bot 的消息，并把内容发送到指定的 rum 种子网络
 
 ```bash
 python do_blaze.py
 ```
 
-- rss 服务：从 rum 获取最新内容，并推送给用户
+- rss 服务：从 rum 获取最新内容，并生成动态，在 mixin 上推送给 user
 
 ```bash
-python do_get_trxs.py
 python do_rum_to_xin.py
 ```
-
-- rum 服务：把内容发送到指定的 rum 种子网络
-
-```bash
-python do_xin_to_rum.py
-```
-
 
 ## 依赖：
 

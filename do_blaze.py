@@ -84,23 +84,32 @@ async def message_handle(message):
         return
 
     category = msg_data.get("category")
-    to_send_data = None
+    is_echo = True
+    to_send_data = {}
     reply_text = ""
     reply_msgs = []
+    mixin_id = msg_data.get("user_id")
+    pvtkey = bot.db.get_privatekey(mixin_id)
+    quote_message_id = msg_data.get("quote_message_id")
 
     if category not in ["PLAIN_TEXT", "PLAIN_IMAGE"]:
         reply_text = f"暂不支持此类消息，如有需求，请联系开发者\ncategory: {category}"
         reply_msgs.append(pack_message(pack_contact_data(DEV_MIXIN_ID), msg_cid))
+        logger.warning(reply_text)
     elif category == "PLAIN_TEXT":
-        msgview = MessageView.from_dict(msg_data)
+        text = MessageView.from_dict(msg_data).data_decoded
+        to_send_data["content"] = text
         _text_length = f"文本长度需在 {TEXT_LENGTH_MIN} 至 {TEXT_LENGTH_MAX} 之间"
-        if len(msgview.data_decoded) <= TEXT_LENGTH_MIN:
-            reply_text = f"消息太短，无法处理。{_text_length}"
-            reply_msgs.append(pack_message(pack_contact_data(RSS_MIXIN_ID), msg_cid))
-        elif len(msgview.data_decoded) >= TEXT_LENGTH_MAX:
-            reply_text = f"消息太长，无法处理。{_text_length}"
-        else:
-            to_send_data = {"content": msgview.data_decoded}
+        if not quote_message_id:
+            if text.startswith("修改昵称：") and len(text) <= 5:
+                reply_text = f"昵称太短，无法处理。"
+                to_send_data = {}
+            elif len(text) <= TEXT_LENGTH_MIN:
+                reply_text = f"消息太短，无法处理。{_text_length}"
+                to_send_data = {}
+            elif len(text) >= TEXT_LENGTH_MAX:
+                reply_text = f"消息太长，无法处理。{_text_length}"
+                to_send_data = {}
     elif category == "PLAIN_IMAGE":
         try:
             _bytes, _ = get_filebytes(data)
@@ -108,27 +117,44 @@ async def message_handle(message):
             attachment = bot.xin.api.message.read_attachment(attachment_id)
             view_url = attachment["data"]["view_url"]
             content = requests.get(view_url).content
-            to_send_data = {"images": [content]}
+            to_send_data["images"] = [content]
         except Exception as err:
-            to_send_data = None
+            to_send_data = {}
             reply_text = "Mixin 服务目前不稳定，请稍后再试，或联系开发者\n" + str(err)
             reply_msgs.append(pack_message(pack_contact_data(DEV_MIXIN_ID), msg_cid))
             logger.warning(err)
+            is_echo = False
 
     if to_send_data:
-        pvtkey = bot.db.get_privatekey(msg_data.get("user_id"))
-        try:
-            resp = bot.rum.api.send_content(pvtkey, **to_send_data)
-            if "trx_id" in resp:
-                print(datetime.datetime.now(), resp["trx_id"], "sent_to_rum done.")
-                reply_text = f"已成功生成 trx_id <{resp['trx_id']}>，加入上链队列"
+        resp = None
+        quoted = None
+        text = to_send_data.get("content", "")
+
+        if quote_message_id:
+            quoted = bot.db.get_sent_msg(quote_message_id)
+        if quoted:
+            if text in ["赞", "点赞", "1", "+1"]:
+                resp = bot.rum.api.like(pvtkey, quoted.trx_id)
+            elif text in ["踩", "点踩", "-1", "0"]:
+                resp = bot.rum.api.like(pvtkey, quoted.trx_id, "Dislike")
             else:
-                reply_text = f"发送到 RUM 种子网络时出错，请稍后再试，或联系开发者\n\n{resp}"
-                reply_msgs.append(pack_message(pack_contact_data(DEV_MIXIN_ID), msg_cid))
-        except Exception as err:
-            reply_text = f"发送到 RUM 种子网络时出错，请稍后再试，或联系开发者\n\n{err}"
+                resp = bot.rum.api.reply_trx(pvtkey, trx_id=quoted.trx_id, **to_send_data)
+        else:
+            if text.startswith("修改昵称："):
+                name = text[5:] or "昵称太短请重新修改"
+                resp = bot.rum.api.update_profile(pvtkey, name=name)
+            else:
+                resp = bot.rum.api.send_content(pvtkey, **to_send_data)
+
+        if resp and "trx_id" in resp:
+            print(datetime.datetime.now(), resp["trx_id"], "sent_to_rum done.")
+            reply_text = f"已成功生成 trx_id <{resp['trx_id']}>，进入上链队列"
+            bot.db.update_sent_msgs(msg_id, resp["trx_id"], mixin_id)
+        else:
+            reply_text = f"发送到 RUM 种子网络时出错，请稍后再试，或联系开发者\n\n{resp}"
             reply_msgs.append(pack_message(pack_contact_data(DEV_MIXIN_ID), msg_cid))
-            logger.warning(err)
+            logger.warning(reply_text)
+            is_echo = False
 
     if reply_text:
         reply_msg = pack_message(
@@ -141,8 +167,8 @@ async def message_handle(message):
     if reply_msgs:
         for msg in reply_msgs:
             resp = bot.xin.api.send_messages(msg)
-
-    await bot.blaze.echo(msg_id)
+    if is_echo:
+        await bot.blaze.echo(msg_id)
     return
 
 
