@@ -1,9 +1,3 @@
-# update the mixin_id of developer
-DEV_MIXIN_ID = "30789e31-xxxx-xxxx-xxxx-1a45e781ae2e"
-
-# update the mixin_id of rss bot
-RSS_MIXIN_ID = "30789e31-xxxx-xxxx-xxxx-1a45e781ae2e"
-
 # the treehole bot's keystore file, init from dashboard of mixin.
 MIXIN_BOT_KEYSTORE = {
     "pin": "123474",
@@ -13,6 +7,10 @@ MIXIN_BOT_KEYSTORE = {
     "private_key": "nxw2h201ESDA2_ReiExxxxxt06qj5i2Men_SIUP2IZiwgGe0g8pAsItelRNNNgvjyIKYg0eWvtecH9essI-xqg",
 }
 
+# update the mixin_id of developer
+DEV_MIXIN_ID = "30789e31-xxxx-xxxx-xxxx-1a45e781ae2e"
+
+# the password to init keystore from private key
 COMMON_ACCOUNT_PWD = "your-password"
 
 # the rum group's seed url, init by fullnode joined or created the group.

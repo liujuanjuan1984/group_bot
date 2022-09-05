@@ -36,13 +36,6 @@ async def message_handle(message):
     global bot
     action = message["action"]
 
-    # messages sent by bot
-    if action == "ACKNOWLEDGE_MESSAGE_RECEIPT":
-        logger.info("Mixin blaze server: received the message")
-
-    if action == "LIST_PENDING_MESSAGES":
-        logger.info("Mixin blaze server: list pending message")
-
     if action == "ERROR":
         logger.warning(message["error"])
 
@@ -51,7 +44,7 @@ async def message_handle(message):
 
     error = message.get("error")
     if error:
-        logger.info(str(error))
+        logger.warning(str(error))
         return
 
     msg_data = message.get("data", {})
@@ -93,15 +86,17 @@ async def message_handle(message):
     quote_message_id = msg_data.get("quote_message_id")
 
     if category not in ["PLAIN_TEXT", "PLAIN_IMAGE"]:
-        reply_text = f"暂不支持此类消息，如有需求，请联系开发者\ncategory: {category}"
-        reply_msgs.append(pack_message(pack_contact_data(DEV_MIXIN_ID), msg_cid))
-        logger.warning(reply_text)
+        err = f"暂不支持此类消息，category: {category}\n{msg_data}"
+        logger.warning(err)
     elif category == "PLAIN_TEXT":
         text = MessageView.from_dict(msg_data).data_decoded
         to_send_data["content"] = text
         _text_length = f"文本长度需在 {TEXT_LENGTH_MIN} 至 {TEXT_LENGTH_MAX} 之间"
         if not quote_message_id:
-            if text.startswith("修改昵称：") and len(text) <= 5:
+            if text.lower() in ["hi", "hello", "nihao", "你好", "help", "?", "？"]:
+                reply_text = WELCOME_TEXT
+                to_send_data = {}
+            elif text.startswith("修改昵称") and len(text) <= 5:
                 reply_text = f"昵称太短，无法处理。"
                 to_send_data = {}
             elif len(text) <= TEXT_LENGTH_MIN:
@@ -120,8 +115,7 @@ async def message_handle(message):
             to_send_data["images"] = [content]
         except Exception as err:
             to_send_data = {}
-            reply_text = "Mixin 服务目前不稳定，请稍后再试，或联系开发者\n" + str(err)
-            reply_msgs.append(pack_message(pack_contact_data(DEV_MIXIN_ID), msg_cid))
+            reply_text = "Mixin 服务目前不稳定，将自动为您继续尝试\n" + str(err)
             logger.warning(err)
             is_echo = False
 
@@ -140,18 +134,19 @@ async def message_handle(message):
             else:
                 resp = bot.rum.api.reply_trx(pvtkey, trx_id=quoted.trx_id, **to_send_data)
         else:
-            if text.startswith("修改昵称："):
+            if text.startswith("修改昵称:") or text.startswith("修改昵称："):
                 name = text[5:] or "昵称太短请重新修改"
+                name = name.replace(" ", "_").replace("\n", "-")
                 resp = bot.rum.api.update_profile(pvtkey, name=name)
             else:
                 resp = bot.rum.api.send_content(pvtkey, **to_send_data)
 
         if resp and "trx_id" in resp:
             print(datetime.datetime.now(), resp["trx_id"], "sent_to_rum done.")
-            reply_text = f"已成功生成 trx_id <{resp['trx_id']}>，进入上链队列"
+            reply_text = f"已生成 trx {resp['trx_id']}，排队上链中..."
             bot.db.update_sent_msgs(msg_id, resp["trx_id"], mixin_id)
         else:
-            reply_text = f"发送到 RUM 种子网络时出错，请稍后再试，或联系开发者\n\n{resp}"
+            reply_text = f"发送到 RUM 时出错，将自动为您继续尝试\n{resp}"
             reply_msgs.append(pack_message(pack_contact_data(DEV_MIXIN_ID), msg_cid))
             logger.warning(reply_text)
             is_echo = False
@@ -164,9 +159,8 @@ async def message_handle(message):
         )
         reply_msgs.insert(0, reply_msg)
 
-    if reply_msgs:
-        for msg in reply_msgs:
-            resp = bot.xin.api.send_messages(msg)
+    for msg in reply_msgs:
+        bot.xin.api.send_messages(msg)
     if is_echo:
         await bot.blaze.echo(msg_id)
     return
