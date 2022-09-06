@@ -3,7 +3,7 @@ import logging
 
 from sqlalchemy import Column, Integer, String
 
-from group_bot.models import Base
+from group_bot.models.base import Base
 
 logger = logging.getLogger(__name__)
 

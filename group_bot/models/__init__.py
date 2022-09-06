@@ -1,9 +1,4 @@
-from sqlalchemy.orm import declarative_base
-
-Base = declarative_base()
-
-from group_bot.config import DB_NAME, MIXIN_BOT_KEYSTORE
-from group_bot.models.base import BaseDB
+from group_bot.models.base import Base, BaseDB
 from group_bot.models.bot_db import BotDB
 from group_bot.models.keystore import KeyStore
 from group_bot.models.profile import Profile

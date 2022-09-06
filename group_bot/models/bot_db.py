@@ -5,8 +5,7 @@ import logging
 from eth_account import Account
 from eth_utils.hexadecimal import encode_hex
 
-from group_bot.config import COMMON_ACCOUNT_PWD, MIXIN_BOT_KEYSTORE
-from group_bot.models import Base
+from group_bot.config import COMMON_ACCOUNT_PWD
 from group_bot.models.base import BaseDB
 from group_bot.models.keystore import KeyStore
 from group_bot.models.profile import Profile
@@ -21,9 +20,9 @@ logger = logging.getLogger(__name__)
 def _check_str_param(param):
     if param is None:
         return ""
-    elif type(param) in [dict, list]:
+    if isinstance(param, (dict, list)):
         return json.dumps(param)
-    elif type(param) != str:
+    if not isinstance(param, str):
         try:
             return str(param)
         except:
@@ -36,77 +35,148 @@ class BotDB(BaseDB):
         _mixin_ids = self.session.query(KeyStore.user_id).all()
         return [_mixin_id[0] for _mixin_id in _mixin_ids]
 
-    def get_key(self, mixin_id):
+    def get_nicknames(self):
+        _all_profiles = self.session.query(Profile).all()
+        nicknames = {}
+        for _profile in _all_profiles:
+            nicknames[_profile.pubkey] = {"name": _profile.name}
+        return nicknames
+
+    def get_profile_by_pubkey(self, pubkey):
+        return self.session.query(Profile).filter(Profile.pubkey == pubkey).first()
+
+    def update_nickname(self, pubkey, name):
+        if not name:
+            name = pubkey[-10:-2]
+        existd = self.get_profile_by_pubkey(pubkey)
+        if existd:
+            if existd.name != name:
+                self.session.query(Profile).filter(Profile.pubkey == pubkey).update({"name": name})
+                self.commit()
+        else:
+            self.add(Profile({"pubkey": pubkey, "name": name}))
+
+    def get_keystore(self, mixin_id):
         return self.session.query(KeyStore).filter(KeyStore.user_id == mixin_id).first()
 
-    def add_key(self, mixin_id):
+    def add_keystore(self, mixin_id):
         account = Account.create()
         keystore = account.encrypt(COMMON_ACCOUNT_PWD)
-        _k = {
-            "user_id": mixin_id,
-            "keystore": json.dumps(keystore),
-        }
-        self.add(KeyStore(_k))
+        self.add(
+            KeyStore(
+                {
+                    "user_id": mixin_id,
+                    "keystore": json.dumps(keystore),
+                }
+            )
+        )
+        return keystore
+
+    def update_privatekey(self, mixin_id, private_key):
+        try:
+            account = Account.from_key(private_key)
+            keystore = account.encrypt(COMMON_ACCOUNT_PWD)
+            keystore = json.dumps(keystore)
+        except:
+            return
+        existd = self.get_keystore(mixin_id)
+        if existd:
+            self.session.query(KeyStore).filter(KeyStore.user_id == mixin_id).update(
+                {"keystore": keystore}
+            )
+        else:
+            self.add(
+                KeyStore(
+                    {
+                        "user_id": mixin_id,
+                        "keystore": keystore,
+                    }
+                )
+            )
         return keystore
 
     def get_privatekey(self, mixin_id: str) -> str:
-        key = self.get_key(mixin_id)
-        if key:
-            keystore = json.loads(key.keystore)
+        existd = self.get_keystore(mixin_id)
+        if existd:
+            keystore = json.loads(existd.keystore)
         else:
-            keystore = self.add_key(mixin_id)
+            keystore = self.add_keystore(mixin_id)
 
         pvtkey = Account.decrypt(keystore, COMMON_ACCOUNT_PWD)
         return encode_hex(pvtkey)
 
     def get_trx_progress(self, progress_type):
-        return self.session.query(TrxProgress).filter(TrxProgress.progress_type == progress_type).first()
+        return (
+            self.session.query(TrxProgress)
+            .filter(TrxProgress.progress_type == progress_type)
+            .first()
+        )
 
     def add_trx_progress(self, trx_id, timestamp, progress_type):
-        _p = {
-            "progress_type": progress_type,
-            "trx_id": trx_id,
-            "timestamp": timestamp,
-        }
-        self.add(TrxProgress(_p))
+        self.add(
+            TrxProgress(
+                {
+                    "progress_type": progress_type,
+                    "trx_id": trx_id,
+                    "timestamp": timestamp,
+                }
+            )
+        )
 
     def update_trx_progress(self, trx_id, timestamp, progress_type):
-        if self.get_trx_progress(progress_type):
-            self.session.query(TrxProgress).filter(TrxProgress.progress_type == progress_type).update(
-                {"trx_id": trx_id, "timestamp": timestamp}
-            )
-            self.commit()
+        if timestamp is None:
+            timestamp = str(datetime.datetime.now())
+        existd = self.get_trx_progress(progress_type)
+        if existd:
+            if existd.trx_id != trx_id:
+                self.session.query(TrxProgress).filter(
+                    TrxProgress.progress_type == progress_type
+                ).update({"trx_id": trx_id, "timestamp": timestamp})
+                self.commit()
 
         else:
             self.add_trx_progress(trx_id, timestamp, progress_type)
 
-    def get_trx(self, trx_id):
-        return self.session.query(Trx).filter(Trx.trx_id == trx_id).first()
+    def is_trx_existd(self, trx_id):
+        if self.session.query(Trx).filter(Trx.trx_id == trx_id).first():
+            return True
+        return False
 
     def add_trx(self, trx_id, timestamp, text):
-
-        _p = {
-            "trx_id": trx_id,
-            "timestamp": timestamp,
-            "text": text,
-        }
-
-        self.add(Trx(_p))
+        if self.is_trx_existd(trx_id):
+            return
+        self.add(
+            Trx(
+                {
+                    "trx_id": trx_id,
+                    "timestamp": timestamp,
+                    "text": text,
+                }
+            )
+        )
 
     def get_trxs_later(self, timestamp):
         return self.session.query(Trx).filter(Trx.timestamp > timestamp).all()
 
-    def get_users_by_trx_sent(self, trx_id):
-        _sent_users = self.session.query(TrxStatus.user_id).filter(TrxStatus.trx_id == trx_id).all()
-        return [_sent_user[0] for _sent_user in _sent_users]
+    def is_trx_sent_to_user(self, trx_id, user_id):
+        if (
+            self.session.query(TrxStatus)
+            .filter(TrxStatus.trx_id == trx_id, TrxStatus.user_id == user_id)
+            .first()
+        ):
+            return True
+        return False
 
     def add_trx_sent(self, trx_id, user_id):
-
-        _p = {
-            "trx_id": trx_id,
-            "user_id": user_id,
-        }
-        self.add(TrxStatus(_p))
+        if not self.is_trx_sent_to_user(trx_id, user_id):
+            self.add(
+                TrxStatus(
+                    {
+                        "trx_id": trx_id,
+                        "user_id": user_id,
+                    }
+                )
+            )
 
     def get_sent_msg(self, message_id):
         return self.session.query(SentMsgs).filter(SentMsgs.message_id == message_id).first()
@@ -115,9 +185,12 @@ class BotDB(BaseDB):
         if self.get_sent_msg(message_id):
             return
 
-        _p = {
-            "message_id": message_id,
-            "trx_id": trx_id,
-            "user_id": mixin_id,
-        }
-        self.add(SentMsgs(_p))
+        self.add(
+            SentMsgs(
+                {
+                    "message_id": message_id,
+                    "trx_id": trx_id,
+                    "user_id": mixin_id,
+                }
+            )
+        )

@@ -1,6 +1,7 @@
 import datetime
 import json
 import logging
+import re
 
 import requests
 from mininode import MiniNode
@@ -98,6 +99,19 @@ async def message_handle(message):
                 to_send_data = {}
             elif text.startswith("修改昵称") and len(text) <= 5:
                 reply_text = f"昵称太短，无法处理。"
+                to_send_data = {}
+            elif text.startswith("更换密钥") and len(text) <= 75 and len(text) >= 66:
+                try:
+                    _pvtkey = re.findall(r"[a-fA-F0-9]{64,66}", text)[0]
+                    if not _pvtkey.startswith("0x") and len(_pvtkey) == 64:
+                        _pvtkey = "0x" + _pvtkey
+                    k = bot.db.update_privatekey(mixin_id, _pvtkey)
+                    if k:
+                        reply_text = f"密钥已更换，请注意该方式并非 100% 安全，请勿采用该密钥持有大额资产"
+                    else:
+                        reply_text = "密钥更换失败，请提供正确的密钥，共 66 位字符，以 0x 开头"
+                except Exception as err:
+                    reply_text = f"密钥更换失败，{err}"
                 to_send_data = {}
             elif len(text) <= TEXT_LENGTH_MIN:
                 reply_text = f"消息太短，无法处理。{_text_length}"

@@ -1,16 +1,15 @@
 import logging
 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import declarative_base, sessionmaker
 
-from group_bot.config import DB_NAME
-from group_bot.models import Base
+Base = declarative_base()
 
 logger = logging.getLogger(__name__)
 
 
 class BaseDB:
-    def __init__(self, db_name=DB_NAME, echo=False, reset=False, init=False):
+    def __init__(self, db_name, echo=False, reset=False, init=False):
         # 创建数据库
         engine = create_engine(db_name, echo=echo, connect_args={"check_same_thread": False})
         if reset:
