@@ -31,9 +31,11 @@ def _check_str_param(param):
 
 
 class BotDB(BaseDB):
-    def get_all_users(self):
-        _mixin_ids = self.session.query(KeyStore.user_id).all()
-        return [_mixin_id[0] for _mixin_id in _mixin_ids]
+    def get_all_rss_users(self):
+        _mixin_ids = self.session.query(KeyStore.user_id).filter(KeyStore.is_rss != False).all()
+        users = [_mixin_id[0] for _mixin_id in _mixin_ids]
+        users = [i for i in users if i != "00000000-0000-0000-0000-000000000000"]
+        return users
 
     def get_nicknames(self):
         _all_profiles = self.session.query(Profile).all()
@@ -59,7 +61,7 @@ class BotDB(BaseDB):
     def get_keystore(self, mixin_id):
         return self.session.query(KeyStore).filter(KeyStore.user_id == mixin_id).first()
 
-    def add_keystore(self, mixin_id):
+    def add_keystore(self, mixin_id, is_rss=True):
         account = Account.create()
         keystore = account.encrypt(COMMON_ACCOUNT_PWD)
         self.add(
@@ -67,10 +69,22 @@ class BotDB(BaseDB):
                 {
                     "user_id": mixin_id,
                     "keystore": json.dumps(keystore),
+                    "is_rss": is_rss,
                 }
             )
         )
         return keystore
+
+    def update_rss(self, mixin_id, is_rss=True):
+        existd = self.get_keystore(mixin_id)
+        if existd:
+            if existd.is_rss != is_rss:
+                self.session.query(KeyStore).filter(KeyStore.user_id == mixin_id).update(
+                    {"is_rss": is_rss}
+                )
+                self.commit()
+        else:
+            self.add_keystore(mixin_id, is_rss)
 
     def update_privatekey(self, mixin_id, private_key):
         try:
@@ -90,6 +104,7 @@ class BotDB(BaseDB):
                     {
                         "user_id": mixin_id,
                         "keystore": keystore,
+                        "is_rss": True,
                     }
                 )
             )

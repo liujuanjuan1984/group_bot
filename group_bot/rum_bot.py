@@ -16,13 +16,13 @@ class RumBot:
     def __init__(
         self,
         db_name=DB_NAME,
-        mixin_keystore=MIXIN_BOT_KEYSTORE,
-        seedurl=RUM_SEED_URL,
+        mixin_keystore=None,
+        seedurl=None,
     ):
-        self.config = AppConfig.from_payload(mixin_keystore)
+        self.config = AppConfig.from_payload(mixin_keystore or MIXIN_BOT_KEYSTORE)
         self.db = BotDB(db_name, echo=False, reset=False)
         self.xin = HttpClient_AppAuth(self.config, api_base=HTTP_ZEROMESH)
-        self.rum = MiniNode(seedurl)
+        self.rum = MiniNode(seedurl or RUM_SEED_URL)
 
     def update_profiles(self):
         p_tid = self.get_progress_and_check("GET_PROFILES")
@@ -84,7 +84,10 @@ class RumBot:
             self.db.add_trx(_tid, ts, text)
 
     def _check_text(self, text):
-        _length = 200
+        _length = 1000
+        _lines = 10
+        if len(text.split("\n")) > _lines:
+            text = "\n".join(text.split("\n")[:_lines])
         if len(text) > _length:
             text = text[:_length] + "...略..."
         return text
@@ -92,16 +95,20 @@ class RumBot:
     def send_group_msg_to_xin(self):
         nice_ts = str(datetime.datetime.now() + datetime.timedelta(minutes=MINUTES))
         trxs = self.db.get_trxs_later(nice_ts)
-        users = self.db.get_all_users()
+        users = self.db.get_all_rss_users()
         for trx in trxs:
             text = self._check_text(trx.text)
             packed = pack_text_data(text)
             for user_id in users:
+
                 if self.db.is_trx_sent_to_user(trx.trx_id, user_id):
                     continue
                 cid = self.xin.get_conversation_id_with_user(user_id)
                 msg = pack_message(packed, cid)
-                resp = self.xin.api.send_messages(msg)
-                if "data" in resp:
-                    self.db.add_trx_sent(trx.trx_id, user_id)
-                    self.db.update_sent_msgs(resp["data"]["message_id"], trx.trx_id, user_id)
+                try:
+                    resp = self.xin.api.send_messages(msg)
+                    if "data" in resp:
+                        self.db.add_trx_sent(trx.trx_id, user_id)
+                        self.db.update_sent_msgs(resp["data"]["message_id"], trx.trx_id, user_id)
+                except Exception as err:
+                    logger.warning("send message error: %s", err)

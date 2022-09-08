@@ -49,6 +49,8 @@ async def message_handle(message):
         return
 
     msg_data = message.get("data", {})
+    mixin_id = msg_data.get("user_id", "user_id")
+    logger.info(mixin_id)
 
     msg_id = msg_data.get("message_id")
     if not msg_id:
@@ -82,7 +84,6 @@ async def message_handle(message):
     to_send_data = {}
     reply_text = ""
     reply_msgs = []
-    mixin_id = msg_data.get("user_id")
     pvtkey = bot.db.get_privatekey(mixin_id)
     quote_message_id = msg_data.get("quote_message_id")
 
@@ -96,6 +97,14 @@ async def message_handle(message):
         if not quote_message_id:
             if text.lower() in ["hi", "hello", "nihao", "你好", "help", "?", "？"]:
                 reply_text = WELCOME_TEXT
+                to_send_data = {}
+            elif text.lower() in ["rss", "订阅动态"]:
+                bot.db.update_rss(mixin_id, True)
+                reply_text = "已开启订阅动态推送"
+                to_send_data = {}
+            elif text.lower() in ["unrss", "取消订阅"]:
+                bot.db.update_rss(mixin_id, False)
+                reply_text = "已取消动态推送，可发送“订阅动态”重新开启"
                 to_send_data = {}
             elif text.startswith("修改昵称") and len(text) <= 5:
                 reply_text = f"昵称太短，无法处理。"

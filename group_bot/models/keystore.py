@@ -1,7 +1,7 @@
 import datetime
 import logging
 
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Boolean, Column, Integer, String
 
 from group_bot.models.base import Base
 
@@ -17,6 +17,7 @@ class KeyStore(Base):
     user_id = Column(String(36), unique=True, index=True)  # mixin_id
     addr = Column(String, default=None)
     keystore = Column(String)
+    is_rss = Column(Boolean, default=True)
     created_at = Column(String, default=str(datetime.datetime.now()))
     updated_at = Column(String, default=str(datetime.datetime.now()))
 
