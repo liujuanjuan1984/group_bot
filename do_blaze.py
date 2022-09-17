@@ -82,35 +82,34 @@ async def message_handle(message):
     category = msg_data.get("category")
     is_echo = True
     to_send_data = {}
+    text = ""
     reply_text = ""
     reply_msgs = []
+    resp = None
     pvtkey = bot.db.get_privatekey(mixin_id)
     quote_message_id = msg_data.get("quote_message_id")
 
-    if not USER_CAN_SEND_CONTENT:
-        reply_text = "当前 bot 未开启用户内容发布权限，所以您无法通过 bot 发布内容。但您可通过引用并回复一条动态，生成点赞或回复类型的互动 trx。"
-    elif category not in ["PLAIN_TEXT", "PLAIN_IMAGE"]:
+    if category not in ["PLAIN_TEXT", "PLAIN_IMAGE"]:
         err = f"暂不支持此类消息，category: {category}\n{msg_data}"
         logger.warning(err)
     elif category == "PLAIN_TEXT":
         text = MessageView.from_dict(msg_data).data_decoded
-        to_send_data["content"] = text
         _text_length = f"文本长度需在 {TEXT_LENGTH_MIN} 至 {TEXT_LENGTH_MAX} 之间"
         if not quote_message_id:
             if text.lower() in ["hi", "hello", "nihao", "你好", "help", "?", "？"]:
                 reply_text = WELCOME_TEXT
-                to_send_data = {}
             elif text.lower() in ["rss", "订阅动态"]:
                 bot.db.update_rss(mixin_id, True)
                 reply_text = "已开启订阅动态推送"
-                to_send_data = {}
             elif text.lower() in ["unrss", "取消订阅"]:
                 bot.db.update_rss(mixin_id, False)
                 reply_text = "已取消动态推送，可发送“订阅动态”重新开启"
-                to_send_data = {}
             elif text.startswith("修改昵称") and len(text) <= 5:
                 reply_text = f"昵称太短，无法处理。"
-                to_send_data = {}
+            elif text.startswith("修改昵称:") or text.startswith("修改昵称："):
+                name = text[5:] or "昵称太短请重新修改"
+                name = name.replace(" ", "_").replace("\n", "-")
+                resp = bot.rum.api.update_profile(pvtkey, name=name)
             elif text.startswith("更换密钥") and len(text) <= 75 and len(text) >= 66:
                 try:
                     _pvtkey = re.findall(r"[a-fA-F0-9]{64,66}", text)[0]
@@ -123,32 +122,34 @@ async def message_handle(message):
                         reply_text = "密钥更换失败，请提供正确的密钥，共 66 位字符，以 0x 开头"
                 except Exception as err:
                     reply_text = f"密钥更换失败，{err}"
-                to_send_data = {}
+            elif not USER_CAN_SEND_CONTENT:
+                reply_text = "当前 bot 未开启用户内容发布权限，所以您无法通过 bot 发布内容。但您可通过引用并回复一条动态，生成点赞或回复类型的互动 trx。"
             elif len(text) <= TEXT_LENGTH_MIN:
                 reply_text = f"消息太短，无法处理。{_text_length}"
-                to_send_data = {}
             elif len(text) >= TEXT_LENGTH_MAX:
                 reply_text = f"消息太长，无法处理。{_text_length}"
-                to_send_data = {}
+            else:
+                to_send_data["content"] = text
     elif category == "PLAIN_IMAGE":
-        try:
-            _bytes, _ = get_filebytes(data)
-            attachment_id = json.loads(_bytes).get("attachment_id")
-            attachment = bot.xin.api.message.read_attachment(attachment_id)
-            view_url = attachment["data"]["view_url"]
-            content = requests.get(view_url).content
-            to_send_data["images"] = [content]
-        except Exception as err:
-            to_send_data = {}
-            reply_text = "Mixin 服务目前不稳定，将自动为您继续尝试\n" + str(err)
-            logger.warning(err)
-            is_echo = False
+        if not USER_CAN_SEND_CONTENT:
+            reply_text = "当前 bot 未开启用户内容发布权限，所以您无法通过 bot 发布内容。但您可通过引用并回复一条动态，生成点赞或回复类型的互动 trx。"
+        else:
+            try:
+                _bytes, _ = get_filebytes(data)
+                attachment_id = json.loads(_bytes).get("attachment_id")
+                attachment = bot.xin.api.message.read_attachment(attachment_id)
+                view_url = attachment["data"]["view_url"]
+                content = requests.get(view_url).content
+                to_send_data["images"] = [content]
+            except Exception as err:
+                reply_text = "Mixin 服务目前不稳定，将自动为您继续尝试\n" + str(err)
+                logger.warning(err)
+                is_echo = False
 
-    if to_send_data:
+    if quote_message_id:
         resp = None
         quoted = None
-        text = to_send_data.get("content", "")
-
+        text = MessageView.from_dict(msg_data).data_decoded
         if quote_message_id:
             quoted = bot.db.get_sent_msg(quote_message_id)
         if quoted:
@@ -156,17 +157,14 @@ async def message_handle(message):
                 resp = bot.rum.api.like(pvtkey, quoted.trx_id)
             elif text in ["踩", "点踩", "-1", "0"]:
                 resp = bot.rum.api.like(pvtkey, quoted.trx_id, "Dislike")
-            else:
-                resp = bot.rum.api.reply_trx(pvtkey, trx_id=quoted.trx_id, **to_send_data)
-        else:
-            if text.startswith("修改昵称:") or text.startswith("修改昵称："):
-                name = text[5:] or "昵称太短请重新修改"
-                name = name.replace(" ", "_").replace("\n", "-")
-                resp = bot.rum.api.update_profile(pvtkey, name=name)
-            else:
-                resp = bot.rum.api.send_content(pvtkey, **to_send_data)
+            elif text:
+                resp = bot.rum.api.reply_trx(pvtkey, trx_id=quoted.trx_id, content=text)
 
-        if resp and "trx_id" in resp:
+    if not quote_message_id and to_send_data:
+        resp = bot.rum.api.send_content(pvtkey, **to_send_data)
+
+    if resp:
+        if "trx_id" in resp:
             print(datetime.datetime.now(), resp["trx_id"], "sent_to_rum done.")
             reply_text = f"已生成 trx {resp['trx_id']}，排队上链中..."
             bot.db.update_sent_msgs(msg_id, resp["trx_id"], mixin_id)
