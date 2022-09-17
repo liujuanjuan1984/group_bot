@@ -59,7 +59,7 @@ class RumBot:
                 trx_id = None
         return trx_id
 
-    def get_group_trxs(self):
+    def get_group_trxs(self, **kwargs):
         nicknames = self.update_profiles()
 
         # get the trx_id and check it if exists in that group
@@ -88,7 +88,7 @@ class RumBot:
             if self.db.is_trx_existd(_tid):
                 continue
             # add new trx to db
-            obj = self.rum.api.trx_retweet_params(trx, nicknames)
+            obj = self.rum.api.trx_retweet_params(trx, nicknames, **kwargs)
             if not obj:
                 continue
             text = obj["content"].encode().decode("utf-8")
