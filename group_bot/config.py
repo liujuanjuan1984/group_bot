@@ -16,6 +16,9 @@ DB_NAME = f"sqlite:///{os.path.dirname(os.path.dirname(__file__))}/rss_bot.db"
 
 RUM_SEED_URL = PVT.RUM_SEED_URL
 
+USER_CAN_SEND_CONTENT = PVT.USER_CAN_SEND_CONTENT
+IS_LIKE_TRX_SENT_TO_USER = PVT.IS_LIKE_TRX_SENT_TO_USER
+
 # fake data for test, please update: create the group and get the group info.
 COMMON_ACCOUNT_PWD = PVT.COMMON_ACCOUNT_PWD
 MINUTES = -30
@@ -23,11 +26,12 @@ TEXT_LENGTH_MIN = 6
 TEXT_LENGTH_MAX = 5000
 GROUP_NAME = decode_seed_url(RUM_SEED_URL)["group_name"]
 
+_text = "当您直接在聊天框发送文本或图片，" if USER_CAN_SEND_CONTENT else "当您引用并回复一条动态，"
 WELCOME_TEXT = f"""👋 hello, I am a group bot. 致力于让 mixin 用户更方便地参与到 Rum 种子网络之中。
 
 如何使用？
 
-1. 当您直接在聊天框发送文本或图片，bot 将为您映射并托管一个密钥账号，帮您把内容发送到 RUM 种子网络 {GROUP_NAME}。
+1. {_text}bot 将为您映射并托管一个密钥账号，帮您把内容发送到 RUM 种子网络 {GROUP_NAME}。
 2. 当您与 bot 互动后，您将自动订阅该种子网络的动态推送。您也可以发送“订阅动态” （不包含引号）来订阅，发送“取消订阅” （不包含引号）来取消订阅。
 3. 当您回复任意一条动态，bot 将为您搜寻该动态所对应的 trx，并把您的回复发送到相应的 trx 之下。
 

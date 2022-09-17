@@ -6,7 +6,14 @@ from mixinsdk.clients.http_client import HttpClient_AppAuth
 from mixinsdk.clients.user_config import AppConfig
 from mixinsdk.types.message import pack_message, pack_text_data
 
-from group_bot.config import DB_NAME, HTTP_ZEROMESH, MINUTES, MIXIN_BOT_KEYSTORE, RUM_SEED_URL
+from group_bot.config import (
+    DB_NAME,
+    HTTP_ZEROMESH,
+    IS_LIKE_TRX_SENT_TO_USER,
+    MINUTES,
+    MIXIN_BOT_KEYSTORE,
+    RUM_SEED_URL,
+)
 from group_bot.models import BotDB
 
 logger = logging.getLogger(__name__)
@@ -71,12 +78,16 @@ class RumBot:
             _tid = trx["TrxId"]
             ts = str(utils.timestamp_to_datetime(trx["TimeStamp"]))
             self.db.update_trx_progress(_tid, ts, "GET_CONTENT")
-            # add new trx to db
+
+            # check IS_LIKE_TRX_SENT_TO_USER
+            if not IS_LIKE_TRX_SENT_TO_USER:
+                if utils.get_trx_type(trx) in ("like", "dislike"):
+                    continue
             if ts <= str(datetime.datetime.now() + datetime.timedelta(minutes=MINUTES)):
                 continue
             if self.db.is_trx_existd(_tid):
                 continue
-
+            # add new trx to db
             obj = self.rum.api.trx_retweet_params(trx, nicknames)
             if not obj:
                 continue

@@ -87,7 +87,9 @@ async def message_handle(message):
     pvtkey = bot.db.get_privatekey(mixin_id)
     quote_message_id = msg_data.get("quote_message_id")
 
-    if category not in ["PLAIN_TEXT", "PLAIN_IMAGE"]:
+    if not USER_CAN_SEND_CONTENT:
+        reply_text = "当前 bot 未开启用户内容发布权限，所以您无法通过 bot 发布内容。但您可通过引用并回复一条动态，生成点赞或回复类型的互动 trx。"
+    elif category not in ["PLAIN_TEXT", "PLAIN_IMAGE"]:
         err = f"暂不支持此类消息，category: {category}\n{msg_data}"
         logger.warning(err)
     elif category == "PLAIN_TEXT":

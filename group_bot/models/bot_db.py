@@ -62,7 +62,7 @@ class BotDB(BaseDB):
         return self.session.query(KeyStore).filter(KeyStore.user_id == mixin_id).first()
 
     def add_keystore(self, mixin_id, is_rss=True):
-        account = Account.create()
+        account = Account().create()
         keystore = account.encrypt(COMMON_ACCOUNT_PWD)
         self.add(
             KeyStore(
@@ -88,7 +88,7 @@ class BotDB(BaseDB):
 
     def update_privatekey(self, mixin_id, private_key):
         try:
-            account = Account.from_key(private_key)
+            account = Account().from_key(private_key)
             keystore = account.encrypt(COMMON_ACCOUNT_PWD)
             keystore = json.dumps(keystore)
         except:
@@ -117,7 +117,7 @@ class BotDB(BaseDB):
         else:
             keystore = self.add_keystore(mixin_id)
 
-        pvtkey = Account.decrypt(keystore, COMMON_ACCOUNT_PWD)
+        pvtkey = Account().decrypt(keystore, COMMON_ACCOUNT_PWD)
         return encode_hex(pvtkey)
 
     def get_trx_progress(self, progress_type):
