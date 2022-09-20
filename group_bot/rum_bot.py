@@ -108,12 +108,8 @@ class RumBot:
             text = "\n".join(_lines[:_lines_num]) + "...略..." + _lines[-1:]
         if len(text) > _length:
             text = text[:_length] + "...略..." + _lines[-1:][-200:]
-
-        print("origin", text)
         for pttn, repl in re_pairs:
             text = re.sub(pttn, repl, text)
-        print("checked:", text)
-
         return text
 
     def send_group_msg_to_xin(self):
@@ -134,5 +130,6 @@ class RumBot:
                     if "data" in resp:
                         self.db.add_trx_sent(trx.trx_id, user_id)
                         self.db.update_sent_msgs(resp["data"]["message_id"], trx.trx_id, user_id)
+                        print(datetime.datetime.now(), trx.trx_id, user_id)
                 except Exception as err:
                     logger.warning("send message error: %s", err)
