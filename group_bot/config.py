@@ -19,6 +19,9 @@ RUM_SEED_URL = PVT.RUM_SEED_URL
 USER_CAN_SEND_CONTENT = PVT.USER_CAN_SEND_CONTENT
 IS_LIKE_TRX_SENT_TO_USER = PVT.IS_LIKE_TRX_SENT_TO_USER
 
+# the pttn and repl for re.sub to replace the text in the message.
+RE_PAIRS = PVT.RE_PAIRS
+
 # fake data for test, please update: create the group and get the group info.
 COMMON_ACCOUNT_PWD = PVT.COMMON_ACCOUNT_PWD
 MINUTES = -30

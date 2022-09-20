@@ -1,5 +1,6 @@
 import datetime
 import logging
+import re
 
 from mininode import MiniNode, utils
 from mixinsdk.clients.http_client import HttpClient_AppAuth
@@ -12,6 +13,7 @@ from group_bot.config import (
     IS_LIKE_TRX_SENT_TO_USER,
     MINUTES,
     MIXIN_BOT_KEYSTORE,
+    RE_PAIRS,
     RUM_SEED_URL,
 )
 from group_bot.models import BotDB
@@ -32,6 +34,7 @@ class RumBot:
         self.rum = MiniNode(seedurl or RUM_SEED_URL)
 
     def update_profiles(self):
+        """update profiles of rum users as used by retweeted to xin bot"""
         p_tid = self.get_progress_and_check("GET_PROFILES")
         users_data = self.rum.api.get_profiles(
             users={"progress_tid": p_tid},
@@ -49,6 +52,7 @@ class RumBot:
         return nicknames
 
     def get_progress_and_check(self, progress_type):
+        """get progress of the progress_type"""
         trx_id = None
         existd = self.db.get_trx_progress(progress_type)
         if existd:
@@ -60,6 +64,7 @@ class RumBot:
         return trx_id
 
     def get_group_trxs(self, **kwargs):
+        """get new trxs of rum group and save to db"""
         nicknames = self.update_profiles()
 
         # get the trx_id and check it if exists in that group
@@ -94,24 +99,32 @@ class RumBot:
             text = obj["content"].encode().decode("utf-8")
             self.db.add_trx(_tid, ts, text)
 
-    def _check_text(self, text):
+    def _check_text(self, text, re_pairs):
+        """check the text"""
         _length = 1000
-        _lines = 10
-        if len(text.split("\n")) > _lines:
-            text = "\n".join(text.split("\n")[:_lines])
+        _lines_num = 10
+        _lines = text.split("\n")
+        if len(_lines) > _lines_num:
+            text = "\n".join(_lines[:_lines_num]) + "...略..." + _lines[-1:]
         if len(text) > _length:
-            text = text[:_length] + "...略..."
+            text = text[:_length] + "...略..." + _lines[-1:][-200:]
+
+        print("origin", text)
+        for pttn, repl in re_pairs:
+            text = re.sub(pttn, repl, text)
+        print("checked:", text)
+
         return text
 
     def send_group_msg_to_xin(self):
+        """send new trxs of rum group as message to xin bot"""
         nice_ts = str(datetime.datetime.now() + datetime.timedelta(minutes=MINUTES))
         trxs = self.db.get_trxs_later(nice_ts)
         users = self.db.get_all_rss_users()
         for trx in trxs:
-            text = self._check_text(trx.text)
+            text = self._check_text(trx.text, RE_PAIRS)
             packed = pack_text_data(text)
             for user_id in users:
-
                 if self.db.is_trx_sent_to_user(trx.trx_id, user_id):
                     continue
                 cid = self.xin.get_conversation_id_with_user(user_id)
