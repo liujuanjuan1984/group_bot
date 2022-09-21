@@ -32,6 +32,10 @@ class RumBot:
         self.db = BotDB(db_name, echo=False, reset=False)
         self.xin = HttpClient_AppAuth(self.config, api_base=HTTP_ZEROMESH)
         self.rum = MiniNode(seedurl or RUM_SEED_URL)
+        self.users = self.db.get_all_rss_users()
+        self.nicknames = self.db.get_nicknames()
+        self.trx_progress_tid = self.get_progress_and_check("GET_CONTENT")
+        self.profile_progress_tid = self.get_progress_and_check("GET_PROFILES")
 
     def update_profiles(self):
         """update profiles of rum users as used by retweeted to xin bot"""
@@ -42,22 +46,22 @@ class RumBot:
         )
 
         tid = users_data.get("progress_tid")
-        self.db.update_trx_progress(tid, None, "GET_PROFILES")
+        if tid != p_tid:
+            self.db.update_trx_progress(tid, None, "GET_PROFILES")
 
         for pubkey in users_data:
             if pubkey == "progress_tid":
                 continue
             self.db.update_nickname(pubkey, users_data[pubkey].get("name"))
-        nicknames = self.db.get_nicknames()
-        return nicknames
+        self.nicknames = self.db.get_nicknames()
 
-    def get_progress_and_check(self, progress_type):
+    def get_progress_and_check(self, progress_type):  # TODO:代码逻辑看上去很绕口令。。
         """get progress of the progress_type"""
         trx_id = None
-        existd = self.db.get_trx_progress(progress_type)
-        if existd:
-            trx_id = existd.trx_id
-            # check trx in the group chain.
+        existd_trxid = self.db.get_progress(progress_type)
+        if existd_trxid:
+            trx_id = existd_trxid
+            # check trx in the same group chain.
             _trx = self.rum.api.get_trx(trx_id)
             if _trx.get("TrxId") != trx_id:
                 trx_id = None
@@ -65,25 +69,20 @@ class RumBot:
 
     def get_group_trxs(self, **kwargs):
         """get new trxs of rum group and save to db"""
-        nicknames = self.update_profiles()
 
-        # get the trx_id and check it if exists in that group
-        _ts = None
-        trx_id = self.get_progress_and_check("GET_CONTENT")
-
-        if trx_id is None:
+        if self.trx_progress_tid is None:
             _trxs = self.rum.api.get_content(reverse=True, num=20)
             if len(_trxs) > 0:
-                trx_id = _trxs[-1]["TrxId"]
-                _ts = str(utils.timestamp_to_datetime(_trxs[-1]["TimeStamp"]))
+                self.trx_progress_tid = _trxs[-1]["TrxId"]
 
-        trxs = self.rum.api.get_content(start_trx=trx_id, num=20)
+        trxs = self.rum.api.get_content(start_trx=self.trx_progress_tid, num=20)
+        flag = False
+        ts = None
         for trx in trxs:
             # update progress of get group content
             _tid = trx["TrxId"]
+            self.trx_progress_tid = _tid
             ts = str(utils.timestamp_to_datetime(trx["TimeStamp"]))
-            self.db.update_trx_progress(_tid, ts, "GET_CONTENT")
-
             # check IS_LIKE_TRX_SENT_TO_USER
             if not IS_LIKE_TRX_SENT_TO_USER:
                 if utils.get_trx_type(trx) in ("like", "dislike"):
@@ -93,11 +92,18 @@ class RumBot:
             if self.db.is_trx_existd(_tid):
                 continue
             # add new trx to db
-            obj = self.rum.api.trx_retweet_params(trx, nicknames, **kwargs)
+            obj = self.rum.api.trx_retweet_params(trx, self.nicknames, **kwargs)
             if not obj:
                 continue
             text = obj["content"].encode().decode("utf-8")
             self.db.add_trx(_tid, ts, text)
+            flag = True
+        if ts is not None:
+            self.db.update_trx_progress(self.trx_progress_tid, ts, "GET_CONTENT")
+        # check new trxs and update profiles and nicknames
+        if flag:
+            self.update_profiles()
+            self.users = self.db.get_all_rss_users()
 
     def _check_text(self, text, re_pairs):
         """check the text"""
@@ -115,21 +121,21 @@ class RumBot:
     def send_group_msg_to_xin(self):
         """send new trxs of rum group as message to xin bot"""
         nice_ts = str(datetime.datetime.now() + datetime.timedelta(minutes=MINUTES))
-        trxs = self.db.get_trxs_later(nice_ts)
-        users = self.db.get_all_rss_users()
+        trxs = self.db.get_trxs_todo(nice_ts)
+
         for trx in trxs:
             text = self._check_text(trx.text, RE_PAIRS)
             packed = pack_text_data(text)
-            for user_id in users:
-                if self.db.is_trx_sent_to_user(trx.trx_id, user_id):
-                    continue
-                cid = self.xin.get_conversation_id_with_user(user_id)
-                msg = pack_message(packed, cid)
-                try:
-                    resp = self.xin.api.send_messages(msg)
-                    if "data" in resp:
-                        self.db.add_trx_sent(trx.trx_id, user_id)
-                        self.db.update_sent_msgs(resp["data"]["message_id"], trx.trx_id, user_id)
-                        print(datetime.datetime.now(), trx.trx_id, user_id)
-                except Exception as err:
-                    logger.warning("send message error: %s", err)
+            try:
+                for user_id in self.users:
+                    cid = self.xin.get_conversation_id_with_user(user_id)
+                    msg = pack_message(packed, cid)
+                    try:
+                        resp = self.xin.api.send_messages(msg)
+                        if "data" in resp:
+                            self.db.add_sent_msg(resp["data"]["message_id"], trx.trx_id, user_id)
+                    except Exception as err:
+                        logger.warning("send message error: %s", err)
+            except Exception as err:
+                logger.warning("send_messages error: %s", trx.trx_id + err)
+            self.db.update_trx_as_sent(trx.trx_id)

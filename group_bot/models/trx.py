@@ -1,7 +1,7 @@
 import datetime
 import logging
 
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Boolean, Column, Integer, String
 
 from group_bot.models.base import Base
 
@@ -16,7 +16,8 @@ class Trx(Base):
     id = Column(Integer, unique=True, primary_key=True, index=True)
     trx_id = Column(String(36), unique=True)
     text = Column(String)
-    timestamp = Column(String)  # trx 的 timestamp
+    timestamp = Column(String, index=True)  # trx 的 timestamp
+    is_sent = Column(Boolean, default=False, index=True)
     created_at = Column(String, default=str(datetime.datetime.now()))
     updated_at = Column(String, default=str(datetime.datetime.now()))
 

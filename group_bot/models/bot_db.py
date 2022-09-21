@@ -12,7 +12,6 @@ from group_bot.models.profile import Profile
 from group_bot.models.sent_msgs import SentMsgs
 from group_bot.models.trx import Trx
 from group_bot.models.trx_progress import TrxProgress
-from group_bot.models.trx_status import TrxStatus
 
 logger = logging.getLogger(__name__)
 
@@ -33,9 +32,10 @@ def _check_str_param(param):
 class BotDB(BaseDB):
     def get_all_rss_users(self):
         _mixin_ids = self.session.query(KeyStore.user_id).filter(KeyStore.is_rss != False).all()
-        users = [_mixin_id[0] for _mixin_id in _mixin_ids]
-        users = [i for i in users if i != "00000000-0000-0000-0000-000000000000"]
-        return users
+        for _mixin_id in _mixin_ids:
+            mid = _mixin_id[0]
+            if mid != "00000000-0000-0000-0000-000000000000":
+                yield mid
 
     def get_nicknames(self):
         _all_profiles = self.session.query(Profile).all()
@@ -120,37 +120,37 @@ class BotDB(BaseDB):
         pvtkey = Account().decrypt(keystore, COMMON_ACCOUNT_PWD)
         return encode_hex(pvtkey)
 
-    def get_trx_progress(self, progress_type):
-        return (
-            self.session.query(TrxProgress)
+    def get_progress(self, progress_type):
+        """get the trx_id of progress_type"""
+        trx = (
+            self.session.query(TrxProgress.trx_id)
             .filter(TrxProgress.progress_type == progress_type)
             .first()
         )
-
-    def add_trx_progress(self, trx_id, timestamp, progress_type):
-        self.add(
-            TrxProgress(
-                {
-                    "progress_type": progress_type,
-                    "trx_id": trx_id,
-                    "timestamp": timestamp,
-                }
-            )
-        )
+        if trx:
+            return trx[0]
 
     def update_trx_progress(self, trx_id, timestamp, progress_type):
         if timestamp is None:
             timestamp = str(datetime.datetime.now())
-        existd = self.get_trx_progress(progress_type)
-        if existd:
-            if existd.trx_id != trx_id:
+        existd_trxid = self.get_progress(progress_type)
+        if existd_trxid:
+            if existd_trxid != trx_id:
                 self.session.query(TrxProgress).filter(
                     TrxProgress.progress_type == progress_type
                 ).update({"trx_id": trx_id, "timestamp": timestamp})
                 self.commit()
 
         else:
-            self.add_trx_progress(trx_id, timestamp, progress_type)
+            self.add(
+                TrxProgress(
+                    {
+                        "progress_type": progress_type,
+                        "trx_id": trx_id,
+                        "timestamp": timestamp,
+                    }
+                )
+            )
 
     def is_trx_existd(self, trx_id):
         if self.session.query(Trx).filter(Trx.trx_id == trx_id).first():
@@ -158,8 +158,6 @@ class BotDB(BaseDB):
         return False
 
     def add_trx(self, trx_id, timestamp, text):
-        if self.is_trx_existd(trx_id):
-            return
         self.add(
             Trx(
                 {
@@ -170,36 +168,24 @@ class BotDB(BaseDB):
             )
         )
 
-    def get_trxs_later(self, timestamp):
-        return self.session.query(Trx).filter(Trx.timestamp > timestamp).all()
+    def get_trxs_todo(self, timestamp):
+        return (
+            self.session.query(Trx)
+            .filter(Trx.timestamp > timestamp)
+            .filter(Trx.is_sent == False)
+            .all()
+        )
 
-    def is_trx_sent_to_user(self, trx_id, user_id):
-        if (
-            self.session.query(TrxStatus)
-            .filter(TrxStatus.trx_id == trx_id, TrxStatus.user_id == user_id)
-            .first()
-        ):
-            return True
-        return False
+    def update_trx_as_sent(self, trx_id):
+        self.session.query(Trx).filter(Trx.trx_id == trx_id).update({"is_sent": True})
+        self.commit()
 
-    def add_trx_sent(self, trx_id, user_id):
-        if not self.is_trx_sent_to_user(trx_id, user_id):
-            self.add(
-                TrxStatus(
-                    {
-                        "trx_id": trx_id,
-                        "user_id": user_id,
-                    }
-                )
-            )
+    def get_trx_by_message(self, message_id):
+        trx = self.session.query(SentMsgs.trx_id).filter(SentMsgs.message_id == message_id).first()
+        if trx:
+            return trx[0]
 
-    def get_sent_msg(self, message_id):
-        return self.session.query(SentMsgs).filter(SentMsgs.message_id == message_id).first()
-
-    def update_sent_msgs(self, message_id, trx_id, mixin_id):
-        if self.get_sent_msg(message_id):
-            return
-
+    def add_sent_msg(self, message_id, trx_id, mixin_id):
         self.add(
             SentMsgs(
                 {

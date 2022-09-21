@@ -14,7 +14,7 @@ class SentMsgs(Base):
     __tablename__ = "sent_msgs"
 
     id = Column(Integer, primary_key=True, unique=True, index=True)
-    message_id = Column(String(36))  # of mixin
+    message_id = Column(String(36), index=True)  # of mixin
     trx_id = Column(String(36))  # of rum
     user_id = Column(String(36))  # of mixin
     created_at = Column(String, default=str(datetime.datetime.now()))

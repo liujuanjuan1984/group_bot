@@ -5,4 +5,3 @@ from group_bot.models.profile import Profile
 from group_bot.models.sent_msgs import SentMsgs
 from group_bot.models.trx import Trx
 from group_bot.models.trx_progress import TrxProgress
-from group_bot.models.trx_status import TrxStatus

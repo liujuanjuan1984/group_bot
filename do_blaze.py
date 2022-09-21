@@ -151,23 +151,23 @@ async def message_handle(message):
         quoted = None
         text = MessageView.from_dict(msg_data).data_decoded
         if quote_message_id:
-            quoted = bot.db.get_sent_msg(quote_message_id)
-        if quoted:
+            quoted_trxid = bot.db.get_trx_by_message(quote_message_id)
+        if quoted_trxid:
             if text in ["赞", "点赞", "1", "+1"]:
-                resp = bot.rum.api.like(pvtkey, quoted.trx_id)
+                resp = bot.rum.api.like(pvtkey, quoted_trxid)
             elif text in ["踩", "点踩", "-1", "0"]:
-                resp = bot.rum.api.like(pvtkey, quoted.trx_id, "Dislike")
+                resp = bot.rum.api.like(pvtkey, quoted_trxid, "Dislike")
             elif text:
-                resp = bot.rum.api.reply_trx(pvtkey, trx_id=quoted.trx_id, content=text)
+                resp = bot.rum.api.reply_trx(pvtkey, trx_id=quoted_trxid, content=text)
 
     if not quote_message_id and to_send_data:
         resp = bot.rum.api.send_content(pvtkey, **to_send_data)
 
     if resp:
         if "trx_id" in resp:
-            print(datetime.datetime.now(), resp["trx_id"], "sent_to_rum done.")
+            # print(datetime.datetime.now(), resp["trx_id"], "sent_to_rum done.")
             reply_text = f"已生成 trx {resp['trx_id']}，排队上链中..."
-            bot.db.update_sent_msgs(msg_id, resp["trx_id"], mixin_id)
+            bot.db.add_sent_msg(msg_id, resp["trx_id"], mixin_id)
         else:
             reply_text = f"发送到 RUM 时出错，将自动为您继续尝试\n{resp}"
             reply_msgs.append(pack_message(pack_contact_data(DEV_MIXIN_ID), msg_cid))

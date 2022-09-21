@@ -14,7 +14,7 @@ class Profile(Base):
     __tablename__ = "profiles"
 
     id = Column(Integer, primary_key=True, unique=True, index=True)
-    pubkey = Column(String(36))
+    pubkey = Column(String(36), index=True)
     name = Column(String(36))
     wallet = Column(String, default=None)
     timestamp = Column(String)
