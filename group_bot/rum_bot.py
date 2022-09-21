@@ -107,13 +107,13 @@ class RumBot:
 
     def _check_text(self, text, re_pairs):
         """check the text"""
-        _length = 1000
-        _lines_num = 10
+        _length = 2000
+        _lines_num = 20
         _lines = text.split("\n")
         if len(_lines) > _lines_num:
-            text = "\n".join(_lines[:_lines_num]) + "...略..." + _lines[-1:]
+            text = "\n".join(_lines[:_lines_num]) + "...略..." + _lines[-1]
         if len(text) > _length:
-            text = text[:_length] + "...略..." + _lines[-1:][-200:]
+            text = text[:_length] + "...略..." + _lines[-1][-100:]
         for pttn, repl in re_pairs:
             text = re.sub(pttn, repl, text)
         return text
