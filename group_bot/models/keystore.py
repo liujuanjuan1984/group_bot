@@ -1,9 +1,8 @@
-import datetime
 import logging
 
 from sqlalchemy import Boolean, Column, Integer, String
 
-from group_bot.models.base import Base
+from group_bot.models.base import Base, current_time
 
 logger = logging.getLogger(__name__)
 
@@ -18,8 +17,8 @@ class KeyStore(Base):
     addr = Column(String, default=None)
     keystore = Column(String)
     is_rss = Column(Boolean, default=True)
-    created_at = Column(String, default=str(datetime.datetime.now()))
-    updated_at = Column(String, default=str(datetime.datetime.now()))
+    created_at = Column(String, default=current_time)
+    updated_at = Column(String, default=current_time)
 
     def __init__(self, obj):
         super().__init__(**obj)

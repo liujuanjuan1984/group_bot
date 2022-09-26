@@ -1,3 +1,4 @@
+import datetime
 import logging
 
 from sqlalchemy import create_engine
@@ -6,6 +7,10 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 Base = declarative_base()
 
 logger = logging.getLogger(__name__)
+
+
+def current_time():
+    return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
 class BaseDB:

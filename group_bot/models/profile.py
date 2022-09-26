@@ -1,9 +1,8 @@
-import datetime
 import logging
 
 from sqlalchemy import Column, Integer, String
 
-from group_bot.models.base import Base
+from group_bot.models.base import Base, current_time
 
 logger = logging.getLogger(__name__)
 
@@ -18,8 +17,8 @@ class Profile(Base):
     name = Column(String(36))
     wallet = Column(String, default=None)
     timestamp = Column(String)
-    created_at = Column(String, default=str(datetime.datetime.now()))
-    updated_at = Column(String, default=str(datetime.datetime.now()))
+    created_at = Column(String, default=current_time)
+    updated_at = Column(String, default=current_time)
 
     def __init__(self, obj):
         super().__init__(**obj)
