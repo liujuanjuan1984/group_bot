@@ -3,7 +3,7 @@ import time
 
 from group_bot import RumBot
 
-bot = RumBot()
+bot = RumBot(init=True,echo=True)
 while True:
     try:
         bot.send_group_msg_to_xin()  # Rum 动态转发到 xin

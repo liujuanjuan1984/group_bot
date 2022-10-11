@@ -19,9 +19,9 @@ logger = logging.getLogger(__name__)
 
 
 class BlazeBot:
-    def __init__(self):
+    def __init__(self,**kwargs):
         self.config = AppConfig.from_payload(MIXIN_BOT_KEYSTORE)
-        self.db = BotDB(DB_NAME)
+        self.db = BotDB(DB_NAME,**kwargs)
         self.rum = MiniNode(RUM_SEED_URL)
         self.xin = HttpClient_AppAuth(self.config, api_base=HTTP_ZEROMESH)
 
@@ -189,7 +189,7 @@ async def message_handle(message):
     return
 
 
-bot = BlazeBot()
+bot = BlazeBot(init=True)
 bot.blaze = BlazeClient(
     bot.config,
     on_message=message_handle,

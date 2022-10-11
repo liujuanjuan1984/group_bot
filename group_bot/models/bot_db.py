@@ -98,6 +98,7 @@ class BotDB(BaseDB):
             self.session.query(KeyStore).filter(KeyStore.user_id == mixin_id).update(
                 {"keystore": keystore}
             )
+            self.commit()
         else:
             self.add(
                 KeyStore(

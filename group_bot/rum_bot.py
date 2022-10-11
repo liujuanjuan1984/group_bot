@@ -27,9 +27,10 @@ class RumBot:
         db_name=DB_NAME,
         mixin_keystore=None,
         seedurl=None,
+        **kwargs,
     ):
         self.config = AppConfig.from_payload(mixin_keystore or MIXIN_BOT_KEYSTORE)
-        self.db = BotDB(db_name, echo=False, reset=False)
+        self.db = BotDB(db_name, **kwargs)
         self.xin = HttpClient_AppAuth(self.config, api_base=HTTP_ZEROMESH)
         self.rum = MiniNode(seedurl or RUM_SEED_URL)
         self.users = self.db.get_all_rss_users()
