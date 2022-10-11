@@ -1,3 +1,5 @@
 sqlalchemy
 mixinsdk==0.1.5
 mininode>=0.1.5
+pyjwt>=2.4
+alembic
