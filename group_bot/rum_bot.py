@@ -7,15 +7,7 @@ from mixinsdk.clients.http_client import HttpClient_AppAuth
 from mixinsdk.clients.user_config import AppConfig
 from mixinsdk.types.message import pack_message, pack_text_data
 
-from group_bot.config import (
-    DB_NAME,
-    HTTP_ZEROMESH,
-    IS_LIKE_TRX_SENT_TO_USER,
-    MINUTES,
-    MIXIN_BOT_KEYSTORE,
-    RE_PAIRS,
-    RUM_SEED_URL,
-)
+from group_bot.config import *
 from group_bot.models import BotDB
 
 logger = logging.getLogger(__name__)
@@ -32,7 +24,7 @@ class RumBot:
         self.config = AppConfig.from_payload(mixin_keystore or MIXIN_BOT_KEYSTORE)
         self.db = BotDB(db_name, **kwargs)
         self.xin = HttpClient_AppAuth(self.config, api_base=HTTP_ZEROMESH)
-        self.rum = MiniNode(seedurl or RUM_SEED_URL)
+        self.rum = MiniNode(seedurl or RUM_SEED_URL, version=RUM_VERSION)
         self.users = self.db.get_all_rss_users()
         self.nicknames = self.db.get_nicknames()
         self.trx_progress_tid = self.get_progress_and_check("GET_CONTENT")

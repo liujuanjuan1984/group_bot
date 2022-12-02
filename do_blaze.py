@@ -22,7 +22,7 @@ class BlazeBot:
     def __init__(self, **kwargs):
         self.config = AppConfig.from_payload(MIXIN_BOT_KEYSTORE)
         self.db = BotDB(DB_NAME, **kwargs)
-        self.rum = MiniNode(RUM_SEED_URL)
+        self.rum = MiniNode(RUM_SEED_URL, version=RUM_VERSION)
         self.xin = HttpClient_AppAuth(self.config, api_base=HTTP_ZEROMESH)
 
 
